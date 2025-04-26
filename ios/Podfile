@@ -8,6 +8,9 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+# Add this line for permissions
+require_relative '../node_modules/react-native-permissions/scripts/setup'
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
@@ -16,6 +19,12 @@ end
 
 target 'BookApp' do
   config = use_native_modules!
+
+  # Add this line for permissions
+  setup_permissions([
+    'Camera',
+    'PhotoLibrary'
+  ])
 
   use_react_native!(
     :path => config[:reactNativePath],
@@ -31,5 +40,14 @@ target 'BookApp' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+    
+    # Permissions setup
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_CAMERA=1'
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'PERMISSION_PHOTO_LIBRARY=1'
+      end
+    end
   end
 end

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,11 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
-  PermissionsAndroid,
   Platform,
 } from 'react-native';
-import { RNCamera } from 'react-native-camera';
+import { Camera, useCameraDevice, useCodeScanner } from 'react-native-vision-camera';
 import { RootStackScreenProps } from '../navigation/types';
+import { check, PERMISSIONS, request, RESULTS } from 'react-native-permissions';
 
 export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddBook'>) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -28,24 +28,39 @@ export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddB
   const [rating, setRating] = useState('');
   const [isRead, setIsRead] = useState(false);
 
+  const device = useCameraDevice('back');
+
+  const codeScanner = useCodeScanner({
+    codeTypes: ['ean-13', 'ean-8'],
+    onCodeScanned: (codes) => {
+      if (scanned) return;
+      const code = codes[0];
+      if (code && typeof code.value === 'string') {
+        handleBarCodeScanned({ data: code.value });
+      }
+    }
+  });
+
   useEffect(() => {
     (async () => {
       try {
-        if (Platform.OS === 'android') {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.CAMERA,
-            {
-              title: 'Camera Permission',
-              message: 'App needs camera permission to scan book ISBNs',
-              buttonNeutral: 'Ask Me Later',
-              buttonNegative: 'Cancel',
-              buttonPositive: 'OK',
-            },
-          );
-          setHasPermission(granted === PermissionsAndroid.RESULTS.GRANTED);
+        const cameraPermission = Platform.select({
+          ios: PERMISSIONS.IOS.CAMERA,
+          android: PERMISSIONS.ANDROID.CAMERA,
+        });
+
+        if (!cameraPermission) {
+          console.error('Camera permission not found for platform');
+          return;
+        }
+
+        const permissionStatus = await check(cameraPermission);
+        
+        if (permissionStatus === RESULTS.DENIED) {
+          const permissionResult = await request(cameraPermission);
+          setHasPermission(permissionResult === RESULTS.GRANTED);
         } else {
-          // iOS permissions are handled in Info.plist
-          setHasPermission(true);
+          setHasPermission(permissionStatus === RESULTS.GRANTED);
         }
       } catch (error) {
         console.error('Error requesting camera permission:', error);
@@ -136,13 +151,27 @@ export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddB
       );
     }
 
+    if (device == null) {
+      return (
+        <View style={styles.cameraContainer}>
+          <Text style={styles.cameraText}>No camera device found</Text>
+          <TouchableOpacity
+            style={styles.closeCameraButton}
+            onPress={() => setShowCamera(false)}
+          >
+            <Text style={styles.closeCameraButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.cameraContainer}>
-        <RNCamera
-          style={StyleSheet.absoluteFillObject}
-          onBarCodeRead={scanned ? undefined : handleBarCodeScanned}
-          captureAudio={false}
-          barCodeTypes={[RNCamera.Constants.BarCodeType.ean13, RNCamera.Constants.BarCodeType.ean8]}
+        <Camera
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={true}
+          codeScanner={codeScanner}
         />
         <TouchableOpacity
           style={styles.closeCameraButton}
