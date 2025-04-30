@@ -10,10 +10,13 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Linking,
+  Image,
 } from 'react-native';
 import { Camera, useCameraDevice, useCodeScanner } from 'react-native-vision-camera';
 import { RootStackScreenProps } from '../navigation/types';
 import { check, PERMISSIONS, request, RESULTS } from 'react-native-permissions';
+import { PLACEHOLDER_IMAGES } from '../assets';
 
 export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddBook'>) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -27,6 +30,7 @@ export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddB
   const [genre, setGenre] = useState('');
   const [rating, setRating] = useState('');
   const [isRead, setIsRead] = useState(false);
+  const [coverImage, setCoverImage] = useState<string | undefined>(undefined);
 
   const device = useCameraDevice('back');
 
@@ -41,33 +45,38 @@ export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddB
     }
   });
 
+  const requestCameraPermission = useCallback(async () => {
+    try {
+      const cameraPermission = Platform.select({
+        ios: PERMISSIONS.IOS.CAMERA,
+        android: PERMISSIONS.ANDROID.CAMERA,
+      });
+
+      if (!cameraPermission) {
+        console.error('Camera permission not found for platform');
+        return false;
+      }
+
+      const permissionStatus = await check(cameraPermission);
+      
+      if (permissionStatus === RESULTS.DENIED) {
+        const permissionResult = await request(cameraPermission);
+        return permissionResult === RESULTS.GRANTED;
+      }
+      
+      return permissionStatus === RESULTS.GRANTED;
+    } catch (error) {
+      console.error('Error requesting camera permission:', error);
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
-      try {
-        const cameraPermission = Platform.select({
-          ios: PERMISSIONS.IOS.CAMERA,
-          android: PERMISSIONS.ANDROID.CAMERA,
-        });
-
-        if (!cameraPermission) {
-          console.error('Camera permission not found for platform');
-          return;
-        }
-
-        const permissionStatus = await check(cameraPermission);
-        
-        if (permissionStatus === RESULTS.DENIED) {
-          const permissionResult = await request(cameraPermission);
-          setHasPermission(permissionResult === RESULTS.GRANTED);
-        } else {
-          setHasPermission(permissionStatus === RESULTS.GRANTED);
-        }
-      } catch (error) {
-        console.error('Error requesting camera permission:', error);
-        Alert.alert('Error', 'Failed to access camera. Please check your permissions.');
-      }
+      const permission = await requestCameraPermission();
+      setHasPermission(permission);
     })();
-  }, []);
+  }, [requestCameraPermission]);
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
@@ -77,15 +86,28 @@ export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddB
     try {
       // Using Open Library API to fetch book details
       const response = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${data}&format=json&jscmd=data`);
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error('Failed to fetch book details');
+      }
       
-      if (result[`ISBN:${data}`]) {
-        const bookData = result[`ISBN:${data}`];
+      const result = await response.json();
+      const bookKey = `ISBN:${data}`;
+      
+      if (result[bookKey]) {
+        const bookData = result[bookKey];
         setTitle(bookData.title || '');
         setAuthor(bookData.authors?.[0]?.name || '');
         setDescription(bookData.subtitle || bookData.notes || '');
         setPublishedDate(bookData.publish_date || '');
-        setGenre(bookData.subjects?.join(', ') || '');
+        setGenre(Array.isArray(bookData.subjects) ? bookData.subjects.join(', ') : '');
+        // Try to get the cover image if available
+        if (bookData.cover?.large) {
+          setCoverImage(bookData.cover.large);
+        } else if (bookData.cover?.medium) {
+          setCoverImage(bookData.cover.medium);
+        } else if (bookData.cover?.small) {
+          setCoverImage(bookData.cover.small);
+        }
       } else {
         Alert.alert('Error', 'Book not found. Please try scanning again or enter details manually.');
       }
@@ -118,6 +140,32 @@ export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddB
     // We'll add the actual book saving logic later
     console.log('New book:', newBook);
     navigation.goBack();
+  };
+
+  const handleScanPress = async () => {
+    const permission = await requestCameraPermission();
+    if (permission) {
+      setScanned(false);
+      setShowCamera(true);
+    } else {
+      Alert.alert(
+        'Camera Permission Required',
+        'Please grant camera permission to scan book ISBNs.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Open Settings', 
+            onPress: () => {
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            }
+          }
+        ]
+      );
+    }
   };
 
   if (isLoading) {
@@ -188,13 +236,18 @@ export default function AddBookScreen({ navigation }: RootStackScreenProps<'AddB
       <View style={styles.form}>
         <TouchableOpacity
           style={styles.scanButton}
-          onPress={() => {
-            setScanned(false);
-            setShowCamera(true);
-          }}
+          onPress={handleScanPress}
         >
           <Text style={styles.scanButtonText}>Scan Book ISBN</Text>
         </TouchableOpacity>
+
+        <View style={styles.imagePreviewContainer}>
+          <Image
+            source={coverImage ? { uri: coverImage } : PLACEHOLDER_IMAGES.book as any}
+            style={styles.coverPreview}
+            resizeMode="cover"
+          />
+        </View>
 
         <Text style={styles.label}>Title *</Text>
         <TextInput
@@ -411,5 +464,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  imagePreviewContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  coverPreview: {
+    width: 200,
+    height: 300,
+    borderRadius: 10,
   },
 }); 

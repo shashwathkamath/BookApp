@@ -1,4 +1,3 @@
-export const PLACEHOLDER_IMAGES = {
-  book: require('./book-placeholder.png'),
-  avatar: require('./avatar-placeholder.png'),
-}; 
+import { PLACEHOLDER_IMAGES } from './placeholders';
+
+export { PLACEHOLDER_IMAGES }; 

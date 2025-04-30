@@ -9,7 +9,6 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 const config = {
   server: {
     port: 8081,
-    host: '0.0.0.0', // This allows connections from any IP address
   },
   transformer: {
     getTransformOptions: async () => ({
