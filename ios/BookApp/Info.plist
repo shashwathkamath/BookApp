@@ -32,9 +32,9 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>We need access to your camera to scan book ISBNs</string>
+	<string>We need access to your camera to scan book ISBNs and take profile pictures</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need access to your photo library to save book covers</string>
+	<string>We need access to your photo library to select profile pictures and book covers</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>UILaunchStoryboardName</key>
