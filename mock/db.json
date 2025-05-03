@@ -1,0 +1,23 @@
+{
+  "settings": {
+    "user": {
+      "notifications": true,
+      "darkMode": false,
+      "fontSize": 16,
+      "language": "en",
+      "autoSync": true
+    },
+    "notifications": {
+      "emailNotifications": true,
+      "pushNotifications": true,
+      "marketingEmails": false,
+      "soundEnabled": true
+    },
+    "privacy": {
+      "profileVisibility": "public",
+      "showReadingHistory": true,
+      "showBookmarks": true,
+      "showReviews": false
+    }
+  }
+} 
